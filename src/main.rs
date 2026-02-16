@@ -10,19 +10,19 @@ use std::fs::{File, create_dir_all};
 const URL: &str = "https://dados.ons.org.br/dataset/restricao_coff_eolica_usi";
 
 fn save_parquet_file(mut df: DataFrame, start_date: NaiveDate, end_date: NaiveDate) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Saving parquet file...");
     let output_dir = "output";
     create_dir_all(output_dir)?;
 
     let file_path = format!("{}/curtailment_{}_{}.parquet", output_dir, start_date.format("%Y-%m-%d"), end_date.format("%Y-%m-%d"));
-    let file = File::create(file_path)?;
+    println!("Saving data to '{}'...", file_path);
+    let file = File::create(&file_path)?;
 
     ParquetWriter::new(file).finish(&mut df)?;
     Ok(())
 }
 
 async fn get_data_file(links_hash: Vec<String>) -> Result<DataFrame, Box<dyn std::error::Error>>{
-    println!("Getting data files into memory...");
+    println!("Downloading and processing {} data files...", links_hash.len());
     let scan_args = ScanArgsParquet {
         allow_missing_columns: true,
         ..ScanArgsParquet::default()
@@ -60,13 +60,12 @@ async fn get_data_file(links_hash: Vec<String>) -> Result<DataFrame, Box<dyn std
     }
 
     let df = combined_lf.collect()?;
-    // println!("{:?}", df);
     Ok(df)
 }
 
 
 async fn get_ons_curtailment_links(start_date: NaiveDate, end_date: NaiveDate) -> Result<HashMap<NaiveDate, String>, Box<dyn std::error::Error>> {
-    println!("Getting ONS links...");
+    println!("Searching for ONS curtailment data links between {} and {}...", start_date, end_date);
     let mut headers = header::HeaderMap::new();
     let mut ons_links: HashMap<NaiveDate, String> = HashMap::new();
     headers.insert("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0".parse().unwrap());
@@ -79,10 +78,8 @@ async fn get_ons_curtailment_links(start_date: NaiveDate, end_date: NaiveDate) -
     .headers(headers)
     .send().await?
     .text().await?;
-    // println!("{:?}", document);
 
     let document = Html::parse_document(document.as_str());
-    // Selector CSS para obter apenas as tags `âncoras` com arquivos `.parquet` do html recebido
     let selector = Selector::parse("li > a.resource-url-analytics[href*='.parquet'")?;
 
     let filtered_elements = document.select(&selector);
@@ -91,7 +88,6 @@ async fn get_ons_curtailment_links(start_date: NaiveDate, end_date: NaiveDate) -
         let href = elem.value().attr("href");
 
         if let Some(valid_href) = href {
-            // println!("{}", valid_href);
             let re = Regex::new(r"(\d{4})_(\d{2}).parquet").expect("invalid parttern. .parquet file should end with '%Y_%m.parquet'");
 
             if let Some(captures) = re.captures(valid_href) {
@@ -107,15 +103,12 @@ async fn get_ons_curtailment_links(start_date: NaiveDate, end_date: NaiveDate) -
             }
         }
     }
-    println!("{:?}", ons_links);
     Ok(ons_links)
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
-
-    println!("{:?}", args);
 
     let start_date: NaiveDate = if args.len() > 1 {
         let date_str = &args[1];
@@ -135,12 +128,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         now.naive_utc().into()
     };
 
-    println!("Detected start_date: {:?}", start_date);
-    println!("Detected end_date  : {:?}", end_date);
-
+    println!("---> ONS Curtailment Downloader <---");
+    
     let ons_curtailment_links: HashMap<NaiveDate, String> = get_ons_curtailment_links(start_date, end_date).await?;
+
+    if ons_curtailment_links.is_empty() {
+        println!("No data found for the specified period.");
+        return Ok(());
+    }
+
     let final_df =  get_data_file(ons_curtailment_links.into_values().collect()).await?;
     save_parquet_file(final_df, start_date, end_date)?;
+    
     println!("Done!");
     Ok(())
 }
