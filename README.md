@@ -1,6 +1,6 @@
 # curtailment-ons-rs (Português)
 
-Esta é uma ferramenta de linha de comando para baixar dados de Restrição de Operação por Constrained-off de Usinas Eólicas do Operador Nacional do Sistema Elétrico (ONS) e salvá-los como um arquivo Parquet.
+Ferramenta de linha de comando para baixar dados de Restrição de Operação por Constrained-off de Usinas Eólicas do Operador Nacional do Sistema Elétrico (ONS) e salvá-los como um arquivo Parquet.
 
 ## Como usar
 
@@ -41,12 +41,12 @@ Esta é uma ferramenta de linha de comando para baixar dados de Restrição de O
   ./target/release/curtailment-ons-rs 2025-01 2026-02
   ```
 
-O arquivo de saída será salvo no diretório `output`, com um nome de arquivo como `curtailment_AAAA-MM-DD_AAAA-MM-DD.parquet`.
+O arquivo de saída será salvo no diretório `output`, com um nome de arquivo como `curtailment_AAAA-MM-DD_AAAA-MM-DD.parquet`. Não é necessário criar o diretório manualmente.
 
 ---
 # curtailment-ons-rs (English)
 
-This is a command-line tool to download curtailment data from the Brazilian National System Operator (ONS) and save it as a Parquet file.
+Command-line tool to download curtailment data from the Brazilian National System Operator (ONS) and save it as a Parquet file.
 
 ## How to use
 
@@ -87,4 +87,4 @@ This is a command-line tool to download curtailment data from the Brazilian Nati
   ./target/release/curtailment-ons-rs 2025-01 2026-02
   ```
 
-The output will be saved in the `output` directory, with a filename like `curtailment_YYYY-MM-DD_YYYY-MM-DD.parquet`.
+The output will be saved in the `output` directory, with a filename like `curtailment_YYYY-MM-DD_YYYY-MM-DD.parquet`. No need to create the directory manually.
