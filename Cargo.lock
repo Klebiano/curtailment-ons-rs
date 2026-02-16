@@ -578,7 +578,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "curtail-ons-rs"
+name = "curtailment-ons-rs"
 version = "0.1.0"
 dependencies = [
  "chrono",

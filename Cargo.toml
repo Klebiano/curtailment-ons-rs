@@ -1,7 +1,8 @@
 [package]
-name = "curtail-ons-rs"
+name = "curtailment-ons-rs"
 version = "0.1.0"
 edition = "2024"
+description = "This is a command-line tool to download curtailment data from the Brazilian National System Operator (ONS) and save it as a Parquet file."
 
 [dependencies]
 polars = { version = "0.53.0", features = ["parquet", "lazy", "cloud", "dtype-struct", "strings", "string_encoding", "regex"] }
@@ -10,3 +11,11 @@ reqwest = "0.13.2"
 scraper = "0.25.0"
 tokio = { version = "1", features = ["full"] }
 chrono = { version = "<=0.4.41"}
+
+[profile.release]
+opt-level = 'z'
+lto = true
+codegen-units = 1
+panic = 'abort'
+strip = true
+
