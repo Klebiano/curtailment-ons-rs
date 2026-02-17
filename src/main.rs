@@ -9,19 +9,19 @@ use std::fs::{File, create_dir_all};
 
 const URL: &str = "https://dados.ons.org.br/dataset/restricao_coff_eolica_usi";
 
-fn save_parquet_file(mut df: DataFrame, start_date: NaiveDate, end_date: NaiveDate) -> Result<(), Box<dyn std::error::Error>> {
+fn save_parquet_file(mut df: DataFrame, start_date: NaiveDate, end_date: NaiveDate) -> Result<(), &'static str> {
     let output_dir = "output";
-    create_dir_all(output_dir)?;
+    create_dir_all(output_dir).expect("error creating `/output` diretory");
 
     let file_path = format!("{}/curtailment_{}_{}.parquet", output_dir, start_date.format("%Y-%m-%d"), end_date.format("%Y-%m-%d"));
     println!("Saving data to '{}'...", file_path);
-    let file = File::create(&file_path)?;
+    let file = File::create(&file_path).expect("error creating .parquet file");
 
-    ParquetWriter::new(file).finish(&mut df)?;
+    ParquetWriter::new(file).finish(&mut df).expect("error writing the .parquet file");
     Ok(())
 }
 
-async fn get_data_file(links_hash: Vec<String>) -> Result<DataFrame, Box<dyn std::error::Error>>{
+async fn get_data_file(links_hash: Vec<String>) -> Result<DataFrame, &'static str>{
     println!("Downloading and processing {} data files...", links_hash.len());
     let scan_args = ScanArgsParquet {
         allow_missing_columns: true,
@@ -36,9 +36,14 @@ async fn get_data_file(links_hash: Vec<String>) -> Result<DataFrame, Box<dyn std
     let lazy_frames: Vec<LazyFrame> = links_hash
         .iter()
         .map(|url| {
+            // println!("Download from url: {}", url);
             let mut lf = LazyFrame::scan_parquet(PlRefPath::new(url.as_str()), scan_args.clone()).expect("error scanning the URL");
 
-            lf = lf.with_column(lit(NULL).cast(DataType::String).alias("dsc_restricao"));
+            let schema = lf.collect_schema().expect("expecting a valid schema on the .parquet file!");
+
+            if !schema.contains("dsc_restricao") {
+                lf = lf.with_column(lit(NULL).cast(DataType::String).alias("dsc_restricao"));
+            }
 
             for col_name in &cols_to_cast {
                 lf = lf.with_column(col(*col_name).cast(DataType::String).alias(*col_name));
@@ -47,7 +52,7 @@ async fn get_data_file(links_hash: Vec<String>) -> Result<DataFrame, Box<dyn std
         })
         .collect();
 
-    let mut combined_lf = concat(lazy_frames, UnionArgs::default())?;
+    let mut combined_lf = concat(lazy_frames, UnionArgs::default()).expect("error concatenating the lazy frames");
 
     for col_name in cols_to_cast {
         combined_lf = combined_lf.with_column(
@@ -59,28 +64,24 @@ async fn get_data_file(links_hash: Vec<String>) -> Result<DataFrame, Box<dyn std
         );
     }
 
-    let df = combined_lf.collect()?;
+    let df = combined_lf.collect().expect("Polars dataframe collect error");
     Ok(df)
 }
 
 
-async fn get_ons_curtailment_links(start_date: NaiveDate, end_date: NaiveDate) -> Result<HashMap<NaiveDate, String>, Box<dyn std::error::Error>> {
+async fn get_ons_curtailment_links(start_date: NaiveDate, end_date: NaiveDate) -> Result<HashMap<NaiveDate, String>, &'static str> {
     println!("Searching for ONS curtailment data links between {} and {}...", start_date, end_date);
     let mut headers = header::HeaderMap::new();
     let mut ons_links: HashMap<NaiveDate, String> = HashMap::new();
     headers.insert("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0".parse().unwrap());
     
-    let client = Client::builder()
-    .redirect(reqwest::redirect::Policy::none())
-    .build()?;
+    let client = Client::builder().redirect(reqwest::redirect::Policy::none()).build().expect("error building the request client");
 
-    let document = client.get(URL)
-    .headers(headers)
-    .send().await?
-    .text().await?;
+    let document = client.get(URL).headers(headers).send().await.unwrap().text().await.unwrap();
 
     let document = Html::parse_document(document.as_str());
-    let selector = Selector::parse("li > a.resource-url-analytics[href*='.parquet'")?;
+    // If the webpage changes over time, the code will not work.
+    let selector = Selector::parse("li > a.resource-url-analytics[href*='.parquet'").unwrap();
 
     let filtered_elements = document.select(&selector);
 
@@ -88,6 +89,7 @@ async fn get_ons_curtailment_links(start_date: NaiveDate, end_date: NaiveDate) -
         let href = elem.value().attr("href");
 
         if let Some(valid_href) = href {
+            // If the ONS filename system changes over time, the code will not work.
             let re = Regex::new(r"(\d{4})_(\d{2}).parquet").expect("invalid parttern. .parquet file should end with '%Y_%m.parquet'");
 
             if let Some(captures) = re.captures(valid_href) {
@@ -98,6 +100,7 @@ async fn get_ons_curtailment_links(start_date: NaiveDate, end_date: NaiveDate) -
                 let specific_date = NaiveDate::parse_from_str(&format!("{}-{}-01", year, month), "%Y-%m-%d").expect("invalid ONS filename parsing format, should be '%Y-%m'");
 
                 if specific_date >= start_date && specific_date <= end_date {
+                    // println!("{}: {}", specific_date, valid_href);
                     ons_links.insert(specific_date, valid_href.to_string());
                 }
             }
@@ -107,7 +110,7 @@ async fn get_ons_curtailment_links(start_date: NaiveDate, end_date: NaiveDate) -
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), &'static str> {
     let args: Vec<String> = env::args().collect();
 
     let start_date: NaiveDate = if args.len() > 1 {
@@ -130,14 +133,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("---> ONS Curtailment Downloader <---");
     
-    let ons_curtailment_links: HashMap<NaiveDate, String> = get_ons_curtailment_links(start_date, end_date).await?;
+    let ons_curtailment_links: HashMap<NaiveDate, String> = get_ons_curtailment_links(start_date, end_date).await.expect("error getting ONS curtailment links");
 
+    // println!("{:?}", ons_curtailment_links);
     if ons_curtailment_links.is_empty() {
-        println!("No data found for the specified period.");
-        return Ok(());
+        return Err("No data found for the specified period.");
     }
 
-    let final_df =  get_data_file(ons_curtailment_links.into_values().collect()).await?;
+    let final_df =  get_data_file(ons_curtailment_links.into_values().collect()).await.expect("error getting the ONS dataframe");
     save_parquet_file(final_df, start_date, end_date)?;
     
     println!("Done!");
