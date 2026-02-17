@@ -17,7 +17,7 @@ Ferramenta de linha de comando para baixar dados de Restrição de Operação po
     ```bash
     cargo build --release
     ```
-    O executável estará localizado em `target/release/curtailment-ons-rs`.
+    O executável estará localizado em `target/release/curtailment-ons-rs` para Linux e `target/release/curtailment-ons-rs.exe` para Windows.
 
 3.  **Execute o programa:**
     Você pode executar o programa com datas de início e fim opcionais.
@@ -63,7 +63,7 @@ Command-line tool to download curtailment data from the Brazilian National Syste
     ```bash
     cargo build --release
     ```
-    The executable will be located at `target/release/curtailment-ons-rs`.
+    The executable will be located at `target/release/curtailment-ons-rs` for Linux and `target/release/curtailment-ons-rs.exe` for Windows.
 
 3.  **Run the executable:**
     You can run the program with optional start and end dates.
